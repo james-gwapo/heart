@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I love you</title>
+    <style>
+        body {
+            background: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .container {
+            position: relative;
+            width: 600px;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container"></div>
+
+    <script>
+        const canvas = document.createElement('canvas');
+        const container = document.querySelector('.container');
+        container.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = 600;
+        canvas.height = 400;
+
+        let particles = [];
+        let isTransitioning = false;
+
+        // Particle class with added animation properties
+        class Particle {
+            constructor(x, y) {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.targetX = x;
+                this.targetY = y;
+                this.size = Math.random() * 2 + 1; // Random initial size
+                this.baseSize = this.size;
+                this.color = 'hsl(330, 80%, 70%)'; // Light pink color
+                this.vx = 0;
+                this.vy = 0;
+                this.ease = 0.05;
+                this.friction = 0.95;
+            }
+
+            // Update particle position and size
+            update() {
+                const dx = this.targetX - this.x;
+                const dy = this.targetY - this.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                // Apply forces to move towards the target
+                this.vx += dx * this.ease;
+                this.vy += dy * this.ease;
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Animate size and color when close to the target
+                if (dist < 10 && !isTransitioning) {
+                    // Pop-out animation
+                    this.size += (this.baseSize * 4 - this.size) * 0.1;
+                    // Change color to vibrant red
+                    const colorHue = Math.floor(360 - (dist / 10) * 30);
+                    this.color = `hsl(${colorHue}, 80%, 70%)`;
+                } else if (dist >= 10) {
+                    // Reset size when far from target
+                    this.size += (this.baseSize - this.size) * 0.1;
+                    // Change color to light pink during transition
+                    const colorHue = Math.floor(330 + (dist / 100) * 30);
+                    this.color = `hsl(${colorHue}, 80%, 70%)`;
+                } else {
+                    // Smoothly shrink back after pop
+                    this.size += (this.baseSize - this.size) * 0.1;
+                }
+            }
+
+            // Draw particle on the canvas
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Function to get pixel data from a temporary canvas
+        function getShapeData(drawCallback) {
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            drawCallback(tempCtx);
+
+            const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+            const data = imageData.data;
+            const positions = [];
+
+            for (let y = 0; y < tempCanvas.height; y += 5) {
+                for (let x = 0; x < tempCanvas.width; x += 5) {
+                    const index = (y * tempCanvas.width + x) * 4;
+                    if (data[index + 3] > 0) {
+                        positions.push({ x: x, y: y });
+                    }
+                }
+            }
+            return positions;
+        }
+
+        // Draw a heart shape
+        function drawHeart(ctx) {
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 180);
+            ctx.bezierCurveTo(canvas.width / 2 + 150, 60, canvas.width / 2 + 220, 180, canvas.width / 2, 280);
+            ctx.bezierCurveTo(canvas.width / 2 - 220, 180, canvas.width / 2 - 150, 60, canvas.width / 2, 180);
+            ctx.fill();
+        }
+
+        // Draw "Te Amo" text
+        function drawText(ctx) {
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 80px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('I love you', canvas.width / 2, canvas.height / 2 + 20);
+        }
+
+        // Initialize particles with target positions
+        function initParticles(targetPositions) {
+            particles = [];
+            for (let i = 0; i < targetPositions.length; i++) {
+                const p = new Particle(targetPositions[i].x, targetPositions[i].y);
+                particles.push(p);
+            }
+        }
+
+        // Main animation loop
+        function animate() {
+            // Add a fading trail effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for (const particle of particles) {
+                particle.update();
+                particle.draw();
+            }
+            requestAnimationFrame(animate);
+        }
+
+        // Sequence the animations
+        function startAnimationSequence() {
+            const heartPositions = getShapeData(drawHeart);
+            initParticles(heartPositions);
+            animate();
+
+            setTimeout(() => {
+                isTransitioning = true;
+                const textPositions = getShapeData(drawText);
+
+                if (textPositions.length > particles.length) {
+                    for (let i = particles.length; i < textPositions.length; i++) {
+                        particles.push(new Particle(0, 0));
+                    }
+                } else if (textPositions.length < particles.length) {
+                    particles = particles.slice(0, textPositions.length);
+                }
+
+                const shuffledPositions = [...textPositions].sort(() => 0.5 - Math.random());
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].targetX = shuffledPositions[i].x;
+                    particles[i].targetY = shuffledPositions[i].y;
+                }
+
+                setTimeout(() => {
+                    isTransitioning = false;
+                }, 3000); // Stop transition effect after 3 seconds
+            }, 5000); // 5 seconds
+        }
+
+        startAnimationSequence();
+    </script>
+</body>
+</html>
